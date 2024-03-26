@@ -25,4 +25,11 @@ This application includes a HAProxy configuration file that is set up to use the
 To use the provided HAProxy configuration file, run the following command:
 
 ```bash
-haproxy -d -f ./haproxy.cfg
+haproxy -f ./haproxy.cfg
+cargo run -- --proxyV2
+nc my_ip_address 21123
+TeST Stuff
+Ctrl^c
+```
+
+Without the `--proxyV2` flag, the application will not be able to parse the Proxy Protocol header and will not extract the original source IP address.

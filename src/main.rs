@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+use std::env;
+
 use bytes::BytesMut;
 
 use proxy_protocol::version2::ProxyAddresses;
@@ -28,6 +30,8 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    let proxy_v2 = args.contains(&"--proxyV2".to_string());
     let listener = TcpListener::bind("0.0.0.0:21122").await?;
     loop {
         let (mut socket, _) = listener.accept().await?;
@@ -39,16 +43,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(addr) => addr.to_string(),
                 Err(_) => "unknown".to_string(),
             };
-            let mut real_peer_addr:String = original_peer_addr.clone();
-            loop {
+            let mut real_peer_addr: String = original_peer_addr.clone();
+            if proxy_v2 {
+                // Read the header once at the beginning
                 match socket.read_buf(&mut buf_bytes).await {
                     Ok(0) => {
                         // socket closed
                         return;
                     }
-                    Ok(n) => {
-
-                        println!("Received a real connection from {}", original_peer_addr);
+                    Ok(_) => {
                         if let Ok(header) = proxy_protocol::parse(&mut buf_bytes) {
                             match header {
                                 ProxyHeader::Version2 {
@@ -57,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     addresses,
                                 } => {
                                     println!(
-                                        "Received a proxyied connection with a HAProxy V2 header"
+                                        "Received a proxied connection with a HAProxy V2 header"
                                     );
                                     println!("Command: {:?}", command);
                                     println!("Transport Protocol: {:?}", transport_protocol);
@@ -75,8 +78,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 _ => {}
                             }
                         }
+                        // Clear the buffer
+                        buf_bytes.clear();
+                    }
+                    Err(_) => {
+                        // Error occurred, stop processing
+                        return;
+                    }
+                }
+            }
+
+            // Then enter the main loop
+            loop {
+                match socket.read_buf(&mut buf_bytes).await {
+                    Ok(0) => {
+                        // socket closed
+                        return;
+                    }
+                    Ok(n) => {
                         // Now we have the original peer address
-                        println!("Apparent peer address: {}, Real peer address: {}", original_peer_addr, real_peer_addr);
+                        println!("Received {} bytes from apparent peer address: {},in fact from real peer address: {}",n, original_peer_addr, real_peer_addr);
 
                         // Echo everything received
                         if socket.write_all(buf_bytes.as_ref()).await.is_err() {
