@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'proxy-v2-test'",
+            "program": "${workspaceFolder}/target/debug/proxy-v2-test",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
